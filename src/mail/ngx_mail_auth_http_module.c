@@ -1298,6 +1298,14 @@ ngx_mail_auth_http_create_request(ngx_mail_session_t *s, ngx_pool_t *pool,
         *b->last++ = CR; *b->last++ = LF;
     }
 
+    // add proxy protocal address
+    if (s->connection->proxy_protocol_addr.data != NULL) {
+        b->last = ngx_cpymem(b->last, "X-Forwarded-For: ",
+                             sizeof("X-Forwarded-For: ") - 1);
+        b->last = ngx_copy(b->last, s->connection->proxy_protocol_addr.data, s->connection->proxy_protocol_addr.len);
+        *b->last++ = CR; *b->last++ = LF;
+    }
+
     if (s->auth_method == NGX_MAIL_AUTH_NONE) {
 
         /* HELO, MAIL FROM, and RCPT TO can't contain CRLF, no need to escape */
