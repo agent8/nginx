@@ -83,6 +83,13 @@ static ngx_command_t  ngx_mail_imap_commands[] = {
       offsetof(ngx_mail_imap_srv_conf_t, auth_methods),
       &ngx_mail_imap_auth_methods },
 
+    { ngx_string("imap_server_id"),
+      NGX_MAIL_MAIN_CONF|NGX_MAIL_SRV_CONF|NGX_CONF_2MORE,
+      ngx_mail_capabilities,
+      NGX_MAIL_SRV_CONF_OFFSET,
+      offsetof(ngx_mail_imap_srv_conf_t, server_ids),
+      NULL },
+
       ngx_null_command
 };
 
@@ -126,6 +133,12 @@ ngx_mail_imap_create_srv_conf(ngx_conf_t *cf)
 
     iscf->client_buffer_size = NGX_CONF_UNSET_SIZE;
 
+    if (ngx_array_init(&iscf->server_ids, cf->pool, 8, sizeof(ngx_str_t))
+        != NGX_OK)
+    {
+        return NULL;
+    }
+
     if (ngx_array_init(&iscf->capabilities, cf->pool, 4, sizeof(ngx_str_t))
         != NGX_OK)
     {
@@ -157,6 +170,47 @@ ngx_mail_imap_merge_srv_conf(ngx_conf_t *cf, void *parent, void *child)
                                |NGX_MAIL_AUTH_PLAIN_ENABLED));
 
 
+    if (conf->server_ids.nelts == 0) {
+        conf->server_ids = prev->server_ids;
+    }
+
+    if (conf->server_ids.nelts % 2 != 0) {
+        ngx_log_error(NGX_LOG_EMERG, cf->log, 0,
+           "server ids count error %ui", conf->server_ids.nelts);
+        return NGX_CONF_ERROR;
+    }
+
+    if (conf->server_ids.nelts > 0) {
+        size = sizeof("* ID (" CRLF) - 1;
+
+        c = conf->server_ids.elts;
+        for (i = 0; i < conf->server_ids.nelts; i++) {
+            size += 1 + c[i].len + 2;
+        }
+
+        p = ngx_pnalloc(cf->pool, size);
+        if (p == NULL) {
+            return NGX_CONF_ERROR;
+        }
+
+        conf->server_id.len = size;
+        conf->server_id.data = p;
+
+        p = ngx_cpymem(p, "* ID (", sizeof("* ID (") - 1);
+
+        for (i = 0; i < conf->server_ids.nelts; i++) {
+            if (i > 0) {
+                *p++ = ' ';
+            }
+            *p++ = '"';
+            p = ngx_cpymem(p, c[i].data, c[i].len);
+            *p++ = '"';
+        }
+        *p++ = ')';
+        *p++ = CR; *p = LF;
+
+    }
+
     if (conf->capabilities.nelts == 0) {
         conf->capabilities = prev->capabilities;
     }
@@ -171,6 +225,16 @@ ngx_mail_imap_merge_srv_conf(ngx_conf_t *cf, void *parent, void *child)
 
             *c = *d;
         }
+    }
+
+    if (conf->server_ids.nelts > 0) {
+        // Add ID in capability
+        c = ngx_array_push(&conf->capabilities);
+        if (c == NULL) {
+            return NGX_CONF_ERROR;
+        }
+        ngx_str_t id = ngx_string("ID");
+        *c = id;
     }
 
     size = sizeof("* CAPABILITY" CRLF) - 1;

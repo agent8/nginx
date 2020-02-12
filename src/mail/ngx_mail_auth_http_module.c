@@ -638,6 +638,28 @@ ngx_mail_auth_http_process_headers(ngx_mail_session_t *s,
                 continue;
             }
 
+            if (len == sizeof("X-Auth-User-Id") - 1
+                && ngx_strncasecmp(ctx->header_name_start,
+                                   (u_char *) "X-Auth-User-Id",
+                                   sizeof("X-Auth-User-Id") - 1)
+                   == 0)
+            {
+                s->user_id.len = ctx->header_end - ctx->header_start;
+
+                s->user_id.data = ngx_pnalloc(s->connection->pool, s->user_id.len);
+                if (s->user_id.data == NULL) {
+                    ngx_close_connection(ctx->peer.connection);
+                    ngx_destroy_pool(ctx->pool);
+                    ngx_mail_session_internal_server_error(s);
+                    return;
+                }
+
+                ngx_memcpy(s->user_id.data, ctx->header_start, s->user_id.len);
+
+                continue;
+            }
+
+
             if (len == sizeof("Auth-Wait") - 1
                 && ngx_strncasecmp(ctx->header_name_start,
                                    (u_char *) "Auth-Wait",

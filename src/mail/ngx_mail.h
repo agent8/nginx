@@ -208,6 +208,7 @@ typedef struct {
 
     ngx_str_t               login;
     ngx_str_t               passwd;
+    ngx_str_t               user_id;
 
     ngx_str_t               salt;
     ngx_str_t               tag;
@@ -226,6 +227,9 @@ typedef struct {
     ngx_array_t             args;
 
     ngx_uint_t              login_attempt;
+
+    /* cache ID command and resend it after login*/
+    ngx_str_t               id_command;
 
     /* used to parse POP3/IMAP/SMTP command */
 
@@ -269,6 +273,7 @@ typedef struct {
 #define NGX_IMAP_NEXT          6
 
 #define NGX_IMAP_AUTHENTICATE  7
+#define NGX_IMAP_ID            8
 
 
 #define NGX_SMTP_HELO          1

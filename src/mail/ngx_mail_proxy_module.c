@@ -316,9 +316,11 @@ ngx_mail_proxy_imap_handler(ngx_event_t *rev)
     u_char                 *p;
     ngx_int_t               rc;
     ngx_str_t               line;
+    ngx_str_t               original;
     ngx_connection_t       *c;
     ngx_mail_session_t     *s;
     ngx_mail_proxy_conf_t  *pcf;
+    size_t                  size;
 
     ngx_log_debug0(NGX_LOG_DEBUG_MAIL, rev->log, 0,
                    "mail proxy imap auth handler");
@@ -379,6 +381,68 @@ ngx_mail_proxy_imap_handler(ngx_event_t *rev)
             ngx_mail_proxy_internal_server_error(s);
             return;
         }
+
+        // replace passwd to id command
+        size = sizeof(" \"real-ip\" ") - 1 + sizeof(")") - 1;
+        if (s->id_command.len > 0) {
+            size += s->id_command.len - 1;
+        }
+        if (s->connection->proxy_protocol_addr.len > 0) {
+            size += s->connection->proxy_protocol_addr.len;
+        } else {
+            size += s->connection->addr_text.len;
+        }
+        size += sizeof("\"\"") - 1;
+
+        if (s->user_id.len > 0) {
+            size += sizeof(" \"user-id\" ") - 1 + s->user_id.len;
+            size += sizeof("\"\"") - 1;
+        }
+
+        p = ngx_pnalloc(c->pool, size);
+        if (p == NULL) {
+            ngx_mail_proxy_internal_server_error(s);
+            return;
+        }
+        original.len = size;
+        original.data = p;
+
+        // pass id, real ip and user-id to imap server
+        if (s->id_command.len > 0) {
+            // remove the last )
+            p = ngx_cpymem(p, s->id_command.data, s->id_command.len - 1);
+        } else {
+            *p++ = '(';
+        }
+
+        // real ip
+        p = ngx_cpymem(p, " \"real-ip\" ", sizeof(" \"real-ip\" ") - 1);
+        *p++ = '"';
+        if (s->connection->proxy_protocol_addr.len > 0) {
+            p = ngx_cpymem(p, s->connection->proxy_protocol_addr.data, s->connection->proxy_protocol_addr.len);
+        } else {
+            p = ngx_cpymem(p, s->connection->addr_text.data, s->connection->addr_text.len);
+        }
+        *p++ = '"';
+
+        // user-id
+        if (s->user_id.len > 0) {
+            p = ngx_cpymem(p, " \"user-id\" ", sizeof(" \"user-id\" ") - 1);
+            *p++ = '"';
+            p = ngx_cpymem(p, s->user_id.data, s->user_id.len);
+            *p++ = '"';
+        }
+        *p++ = ')';
+
+        s->passwd.len = ngx_base64_encoded_length(original.len) + 2;
+
+        s->passwd.data = ngx_pnalloc(c->pool, s->passwd.len);
+        if (s->passwd.data == NULL) {
+            ngx_mail_proxy_internal_server_error(s);
+            return;
+        }
+
+        ngx_encode_base64(&s->passwd, &original);
 
         line.len = ngx_sprintf(line.data, "%V {%uz}" CRLF,
                                &s->login, s->passwd.len)

@@ -20,6 +20,8 @@ static ngx_int_t ngx_mail_imap_capability(ngx_mail_session_t *s,
     ngx_connection_t *c);
 static ngx_int_t ngx_mail_imap_starttls(ngx_mail_session_t *s,
     ngx_connection_t *c);
+static ngx_int_t ngx_mail_imap_id(ngx_mail_session_t *s,
+    ngx_connection_t *c);
 
 
 static u_char  imap_greeting[] = "* OK IMAP4 ready" CRLF;
@@ -170,6 +172,10 @@ ngx_mail_imap_auth_state(ngx_event_t *rev)
 
             switch (s->command) {
 
+            case NGX_IMAP_ID:
+                rc = ngx_mail_imap_id(s, c);
+                break;
+
             case NGX_IMAP_LOGIN:
                 rc = ngx_mail_imap_login(s, c);
                 break;
@@ -294,6 +300,34 @@ ngx_mail_imap_auth_state(ngx_event_t *rev)
     }
 
     ngx_mail_send(c->write);
+}
+
+static ngx_int_t
+ngx_mail_imap_id(ngx_mail_session_t *s, ngx_connection_t *c)
+{
+    ngx_str_t  *arg;
+
+    arg = s->args.elts;
+    ngx_mail_imap_srv_conf_t  *iscf;
+
+    s->id_command.len = arg[0].len;
+    s->id_command.data = ngx_pnalloc(c->pool, s->id_command.len);
+    if (s->id_command.data == NULL) {
+        return NGX_ERROR;
+    }
+
+    ngx_memcpy(s->id_command.data, arg[0].data, s->id_command.len);
+
+    ngx_log_debug1(NGX_LOG_DEBUG_MAIL, c->log, 0,
+                   "id command: %V", &s->id_command);
+
+    iscf = ngx_mail_get_module_srv_conf(s, ngx_mail_imap_module);
+
+    if (iscf->server_id.len > 0) {
+        s->text = iscf->server_id;
+    }
+
+    return NGX_OK;
 }
 
 

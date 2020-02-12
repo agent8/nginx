@@ -18,12 +18,14 @@ typedef struct {
     size_t       client_buffer_size;
 
     ngx_str_t    capability;
+    ngx_str_t    server_id;
     ngx_str_t    starttls_capability;
     ngx_str_t    starttls_only_capability;
 
     ngx_uint_t   auth_methods;
 
     ngx_array_t  capabilities;
+    ngx_array_t  server_ids;
 } ngx_mail_imap_srv_conf_t;
 
 

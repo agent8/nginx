@@ -280,6 +280,20 @@ ngx_mail_imap_parse_command(ngx_mail_session_t *s)
 
                 switch (p - c) {
 
+                case 2:
+                    if (s->mail_state == ngx_imap_start
+                        && (c[0] == 'I' || c[0] == 'i')
+                        && (c[1] == 'D'|| c[1] == 'd'))
+                    {
+                        s->command = NGX_IMAP_ID;
+                        s->arg_start = NULL;
+                        s->arg_end = NULL;
+
+                    } else {
+                        goto invalid;
+                    }
+                    break;
+
                 case 4:
                     if ((c[0] == 'N' || c[0] == 'n')
                         && (c[1] == 'O'|| c[1] == 'o')
@@ -405,6 +419,24 @@ ngx_mail_imap_parse_command(ngx_mail_session_t *s)
             break;
 
         case sw_spaces_before_argument:
+
+            // don't parse imap ID args
+            if (s->command == NGX_IMAP_ID) {
+                if (s->arg_start == NULL) {
+                    s->arg_start = p;
+                }
+                if (ch == ')') {
+                    s->arg_end = p + 1;
+                }
+                if (ch == CR) {
+                    state = sw_almost_done;
+                }
+                if (ch == LF) {
+                    goto done;
+                }
+                break;
+            }
+
             switch (ch) {
             case ' ':
                 break;
@@ -571,6 +603,15 @@ ngx_mail_imap_parse_command(ngx_mail_session_t *s)
             break;
 
         case sw_almost_done:
+            if (s->command == NGX_IMAP_ID) {
+                if (s->arg_start == NULL) {
+                    goto invalid;
+                }
+                if (s->arg_end == NULL) {
+                    goto invalid;
+                }
+            }
+
             switch (ch) {
             case LF:
                 goto done;
