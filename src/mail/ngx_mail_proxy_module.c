@@ -411,12 +411,12 @@ ngx_mail_proxy_imap_handler(ngx_event_t *rev)
         if (s->id_command.len > 0) {
             // remove the last )
             p = ngx_cpymem(p, s->id_command.data, s->id_command.len - 1);
+            // real ip
+            p = ngx_cpymem(p, " \"real-ip\" ", sizeof(" \"real-ip\" ") - 1);
         } else {
-            *p++ = '(';
+            p = ngx_cpymem(p, "(\"real-ip\" ", sizeof(" \"real-ip\" ") - 1);
         }
 
-        // real ip
-        p = ngx_cpymem(p, " \"real-ip\" ", sizeof(" \"real-ip\" ") - 1);
         *p++ = '"';
         if (s->connection->proxy_protocol_addr.len > 0) {
             p = ngx_cpymem(p, s->connection->proxy_protocol_addr.data, s->connection->proxy_protocol_addr.len);
@@ -593,9 +593,9 @@ ngx_mail_proxy_smtp_handler(ngx_event_t *rev)
         if (s->connection->proxy_protocol_addr.data != NULL) {
             client_addr = s->connection->proxy_protocol_addr;
         }
-        line.len = sizeof("XCLIENT ADDR= LOGIN= NAME="
+        line.len = sizeof("XCLIENT ADDR= LOGIN= NAME= USERID="
                           CRLF) - 1
-                   + client_addr.len + s->login.len + s->host.len;
+                   + client_addr.len + s->login.len + s->host.len + s->user_id.len;
 
 #if (NGX_HAVE_INET6)
         if (s->connection->sockaddr->sa_family == AF_INET6) {
@@ -626,6 +626,9 @@ ngx_mail_proxy_smtp_handler(ngx_event_t *rev)
 
         p = ngx_cpymem(p, " NAME=", sizeof(" NAME=") - 1);
         p = ngx_copy(p, s->host.data, s->host.len);
+
+        p = ngx_cpymem(p, " USERID=", sizeof(" USERID=") - 1);
+        p = ngx_copy(p, s->user_id.data, s->user_id.len);
 
         *p++ = CR; *p++ = LF;
 
