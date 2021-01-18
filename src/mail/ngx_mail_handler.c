@@ -146,8 +146,14 @@ ngx_mail_init_connection(ngx_connection_t *c)
 
     len = ngx_sock_ntop(c->sockaddr, c->socklen, text, NGX_SOCKADDR_STRLEN, 1);
 
-    ngx_log_error(NGX_LOG_INFO, c->log, 0, "*%uA client %*s connected to %V",
+    if (c->proxy_protocol_addr.data != NULL) {
+        ngx_log_error(NGX_LOG_INFO, c->log, 0, "*%uA client %V:%d connected to %V",
+                  c->number, &c->proxy_protocol_addr,
+                  c->proxy_protocol_port, s->addr_text);
+    } else {
+        ngx_log_error(NGX_LOG_INFO, c->log, 0, "*%uA client %*s connected to %V",
                   c->number, len, text, s->addr_text);
+    }
 
     ctx = ngx_palloc(c->pool, sizeof(ngx_mail_log_ctx_t));
     if (ctx == NULL) {
@@ -155,7 +161,12 @@ ngx_mail_init_connection(ngx_connection_t *c)
         return;
     }
 
-    ctx->client = &c->addr_text;
+    ngx_str_t *p = &c->addr_text;
+    if (c->proxy_protocol_addr.data != NULL) {
+        p = &c->proxy_protocol_addr;
+    }
+
+    ctx->client = p;
     ctx->session = s;
 
     c->log->connection = c->number;
