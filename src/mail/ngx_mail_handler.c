@@ -970,12 +970,18 @@ ngx_mail_log_error(ngx_log_t *log, u_char *buf, size_t len)
     }
 
     ctx = log->data;
+    s = ctx->session;
 
-    p = ngx_snprintf(buf, len, ", client: %V", ctx->client);
+    if (s->connection->proxy_protocol_addr.len) {
+        p = ngx_snprintf(buf, len, ", proxy: %V, client: %V",
+                 ctx->client,
+                 &s->connection->proxy_protocol_addr);
+    } else {
+        p = ngx_snprintf(buf, len, ", client: %V", ctx->client);
+    }
+
     len -= p - buf;
     buf = p;
-
-    s = ctx->session;
 
     if (s == NULL) {
         return p;

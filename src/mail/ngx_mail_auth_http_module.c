@@ -1157,6 +1157,7 @@ ngx_mail_auth_http_create_request(ngx_mail_session_t *s, ngx_pool_t *pool,
     size_t                     len;
     ngx_buf_t                 *b;
     ngx_str_t                  login, passwd;
+    u_char                    *p;
 #if (NGX_MAIL_SSL)
     ngx_str_t                  verify, subject, issuer, serial, fingerprint,
                                raw_cert, cert;
@@ -1313,6 +1314,17 @@ ngx_mail_auth_http_create_request(ngx_mail_session_t *s, ngx_pool_t *pool,
                        s->connection->addr_text.len);
     *b->last++ = CR; *b->last++ = LF;
 
+    // add connection number
+    p = ngx_pnalloc(pool, NGX_ATOMIC_T_LEN);
+    if (p == NULL) {
+        return NULL;
+    }
+
+    len = ngx_sprintf(p, "%uA", s->connection->number) - p;
+    b->last = ngx_cpymem(b->last, "Connection: ", sizeof("Connection: ") - 1);
+    b->last = ngx_copy(b->last, p, len);
+    *b->last++ = CR; *b->last++ = LF;
+
     if (s->host.len) {
         b->last = ngx_cpymem(b->last, "Client-Host: ",
                              sizeof("Client-Host: ") - 1);
@@ -1320,8 +1332,8 @@ ngx_mail_auth_http_create_request(ngx_mail_session_t *s, ngx_pool_t *pool,
         *b->last++ = CR; *b->last++ = LF;
     }
 
-    // add proxy protocal address
-    if (s->connection->proxy_protocol_addr.data != NULL) {
+    // add proxy protocol address
+    if (s->connection->proxy_protocol_addr.len) {
         b->last = ngx_cpymem(b->last, "X-Forwarded-For: ",
                              sizeof("X-Forwarded-For: ") - 1);
         b->last = ngx_copy(b->last, s->connection->proxy_protocol_addr.data, s->connection->proxy_protocol_addr.len);
